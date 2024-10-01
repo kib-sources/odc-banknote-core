@@ -54,8 +54,8 @@ typedef struct {
 
     SALT salt;
 
-    // current_hash = hash(bank_id, ..., sign_algorithm, hash_algorithm, salt)
-    HASH current_hash;
+    // hash = hash(bank_id, ..., sign_algorithm, hash_algorithm, salt)
+    HASH hash;
 
     SIGN bank_sign;
 
@@ -79,8 +79,8 @@ typedef struct {
 
     SALT salt;
 
-    // current_hash = hash(bank_id, ..., applicability, salt)
-    HASH current_hash;
+    // hash = hash(bank_id, ..., applicability, salt)
+    HASH hash;
 
     SIGN bank_sign;
 
@@ -108,8 +108,8 @@ typedef struct {
 
     SALT salt;
 
-    // current_hash = hash(bank_id, ..., applicability, salt)
-    HASH current_hash;
+    // hash = hash(bank_id, ..., applicability, salt)
+    HASH hash;
 
     SIGN bank_sign;
 
@@ -130,7 +130,7 @@ typedef struct{
     // BLOCK_CHAIN или BLOCK_HEADER или BLOCK_APPEND_APPLICABILITY
     HASH parent_hash;
 
-    // [sok_a](bpk) подпись
+    // [sok_a](bpk) подпись отправителя 
     SIGN sokA_by_bpk;
 
     UINT counter;
@@ -139,14 +139,24 @@ typedef struct{
 
     // HASH hash0 = hash(bank_id, banknote_id, parent_hash, sokA_by_bpk, counter, salt)
     HASH hash0;
-    SIGN hash0_spk;
+    SIGN hash0_spkB;
 
     SALT salt;
 
-    // current_hash = hash(hash0_spk, salt)
-    HASH current_hash
+    // hash = hash(hash0, hash0_spkB, salt)
+    HASH hash;
+
+    // Подпись хеша
+    SIGN hash_by_spkA;
 
 
+    // ------------------
+    // Дополнительные поля -- доп. подтверждение банком.
+    // при ОНЛАЙН платеже
+    SALT salt_bank = 0;
+    HASH hash_bank = 0;
+    SIGN hash_bank_by_bpk = 0;
+    
 
 } BLOCK_CHAIN;
 
@@ -176,8 +186,8 @@ typedef struct{
     HASH parent_right;
 
     SALT salt;
-    // HASH current_hash = hash(bank_id, banknote_id, parent_left, parent_right, salt)
-    HASH current_hash;
+    // HASH hash = hash(bank_id, banknote_id, parent_left, parent_right, salt)
+    HASH hash;
     SIGN hash_by_bpk;
 
 } BLOCK_SWAP;
