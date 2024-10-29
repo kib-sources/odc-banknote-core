@@ -1,3 +1,7 @@
+#ifndef ODC_BANKNOTE_BLOCKS_H
+#define ODC_BANKNOTE_BLOCKS_H
+
+#include "types.h"
 /**
 ODC
 odc-banknote-core
@@ -10,8 +14,8 @@ odc-banknote-core
 **/
 
 
-const ODCB_FILE_PREFIX prefix = "ODC banknote........";
-const ODCB_FILE_VERSION version = "v2.0.1....";
+static const ODCB_FILE_PREFIX prefix = {'O', 'D', 'C', ' ', 'b', 'a', 'n', 'k', 'n', 'o', 't', 'e', '.', '.', '.', '.', '.', '.', '.', '.'}; //"ODC banknote";
+static const ODCB_FILE_VERSION version = {'v', '2', '.', '0', '.', '1', '.', '.', '.', '.'}; //"v2.0.1";
 
 
 /*
@@ -36,29 +40,29 @@ BLOCK_COMMENT не безопасно.
 
 */
 
-
-
+//type(20) + bank_id (36) + banknote_id (36) + 
+//code(9) + amount(?) + applicability(16) +
+//sign_algorithm(20) + hash_algorithm(20) +
+//salt(32) + hash(128) + bank_sign(512)
 typedef struct {
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "header..............";
+    BLOCK_TYPE type; // = {'h', 'e', 'a', 'd', 'e', 'r', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"header.............";
 
     UUID bank_id;
     UUID banknote_id;
     CURRENCY_CODE code;
     MONEY_AMOUNT amount;
 
-    APPLICABILITY applicability = "ALL-0000-0000000";
+    APPLICABILITY applicability; // {'A', 'L', 'L', '-', '0', '0', '0', '0', '-', '0', '0', '0', '0', '0', '0'}; "ALL-0000-0000000";
 
-    NAME_ALGORITHM sign_algorithm = "RSA-4096............";
-    NAME_ALGORITHM hash_algorithm = "SHA-512.............";
+    NAME_ALGORITHM sign_algorithm; // {'R', 'S', 'A', '-', '4', '0', '9', '6', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; "RSA-4096............";
+    NAME_ALGORITHM hash_algorithm; //{'S', 'H', 'A', '-', '5', '1', '2', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; "SHA-512.............";
 
     SALT salt;
 
-    // hash = hash(bank_id, ..., sign_algorithm, hash_algorithm, salt)
     HASH hash;
 
     SIGN bank_sign;
-
 
 } BLOCK_HEADER;
 
@@ -67,7 +71,7 @@ typedef struct {
 // Блок дополнительных требований на банкноту.
 typedef struct {
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "append-applicability";
+    const BLOCK_TYPE type; //= {'a', 'p', 'p', 'e', 'n', 'd', '-', 'a', 'p', 'p', 'l', 'i', 'c', 'a', 'b', 'i', 'l', 'i', 't', 'y'}; //"append-applicability";
 
     UUID bank_id;
     UUID banknote_id;
@@ -121,7 +125,7 @@ typedef struct {
 
 typedef struct{
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "chain...............";
+    const BLOCK_TYPE type;// = {'c', 'h', 'a', 'i', 'n', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"chain...............";
 
     UUID bank_id;
     UUID banknote_id;
@@ -153,9 +157,9 @@ typedef struct{
     // ------------------
     // Дополнительные поля -- доп. подтверждение банком.
     // при ОНЛАЙН платеже
-    SALT salt_bank = 0;
-    HASH hash_bank = 0;
-    SIGN hash_bank_by_bpk = 0;
+    SALT salt_bank;// = {'0'};
+    HASH hash_bank;// = {'0'};
+    SIGN hash_bank_by_bpk; //= {'0'};
     
 
 } BLOCK_CHAIN;
@@ -163,7 +167,7 @@ typedef struct{
 
 typedef struct{
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "comment.............";
+    const BLOCK_TYPE type; //{'c', 'o', 'm', 'm', 'e', 'n', 't', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"comment.............";
 
     COMMENT_FIELD comment;
 
@@ -172,7 +176,7 @@ typedef struct{
 
 typedef struct{
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "swap................";
+    const BLOCK_TYPE type; // = {'s', 'w', 'a', 'p', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"swap................";
 
     UUID banknote_id;
     UUID bank_id;
@@ -196,8 +200,12 @@ typedef struct{
 
 typedef struct{
     BLOCK_SIZE size;
-    const BLOCK_TYPE type = "tail................";
+    const BLOCK_TYPE type; // = {'t', 'a', 'i', 'l', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"tail................";
     COMMENT_FIELD tail_comment;
 } BLOCK_TAIL;
 
-const char[] _TAIL_COMMENT_PREFIX = "See https://github.com/kib-sources/odc-banknote-core, KIB(c)"
+
+
+static const char _TAIL_COMMENT_PREFIX[70] = "See https://github.com/kib-sources/odc-banknote-core, KIB(c)";
+
+#endif
