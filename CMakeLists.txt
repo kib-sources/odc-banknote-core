@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 # here we specify that the project is C language only, so the default
 # C compiler on the system will be used
 project(odc C CXX)
-
+set(CMAKE_BUILD_TYPE Debug)
 
 set(SOURCE src/main.c)
 set(LIBRARIES 
@@ -11,7 +11,7 @@ set(LIBRARIES
     src/banknote_blocks.h 
     src/banknote.h
     src/common.h src/common.c 
-    src/tests.c
+    src/cryptests.c
 )
 
 add_library(LIBS STATIC ${LIBRARIES})

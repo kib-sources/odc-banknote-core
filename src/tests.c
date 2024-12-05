@@ -15,15 +15,25 @@ TEST(get_hash_sha512, BasicAssertions) {
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include "common.h"
- 
+
+
+
+
 void TEST1_SHA512()
 {
-  unsigned char test[129];
-  get_hex_hash_sha512("string", test);
+  HASH test;
+  _get_hash_sha512("string", test);
+  print_hex(test, HASH_SIZE);
+  unsigned char hash[128];
+  for(int i = 0; i < HASH_SIZE; i++)
+  {
+        sprintf(hash + (i * 2), "%02x", test[i]);
+  }
+  hash[128] = 0;
   unsigned char* result = ("2757cb3cafc39af451abb2697be79b4ab61d63d74d85b0418629de8c26811b529f3f3780d0150063ff55a2beee74c4ec102a2a2731a1f1f7f10d473ad18a6a87");
-  int res = strcmp(test, result);
+  int res = strcmp(hash, result);
   printf("***TEST1_SHA512***\n");
-  printf("Produced result: \n\t %s \n", test);
+  printf("Produced result: \n\t %s \n", hash);
   printf("Expected result: \n\t %s \n", result);
   if (res == 0) {
     printf("TEST1_SHA512 passed!\n");
@@ -34,12 +44,19 @@ void TEST1_SHA512()
 
 void TEST2_SHA512()
 {
-  unsigned char test[129];
-  get_hex_hash_sha512("important", test);
+  HASH test;
+  _get_hash_sha512("important", test);
+  print_hex(test, HASH_SIZE);
+  unsigned char hash[128];
+  for(int i = 0; i < HASH_SIZE; i++)
+  {
+        sprintf(hash + (i * 2), "%02x", test[i]);
+  }
+  hash[128] = 0;
   unsigned char* result = ("09cdb9fc303c7ceaa74c5427dee2b09bec82338b2fc6cab21e54130a353b2b0a86bde09bbe27b0597789a7868a548406c5dfd057964a7e88441adbe0af1b357e");
-  int res = strcmp(test, result);
+  int res = strcmp(hash, result);
   printf("***TEST2_SHA512***\n");
-  printf("Produced result: \n\t %s \n", test);
+  printf("Produced result: \n\t %s \n", hash);
   printf("Expected result: \n\t %s \n", result);
   if (res == 0) {
     printf("TEST2_SHA512 passed!\n");
@@ -50,12 +67,19 @@ void TEST2_SHA512()
 
 void TEST3_SHA512()
 {
-  unsigned char test[129];
-  get_hex_hash_sha512("qwerty", test);
+  HASH test;
+  _get_hash_sha512("qwerty", test);
+  print_hex(test, HASH_SIZE);
+  unsigned char hash[128];
+  for(int i = 0; i < HASH_SIZE; i++)
+  {
+        sprintf(hash + (i * 2), "%02x", test[i]);
+  }
+  hash[128] = 0;
   unsigned char* result = ("0dd3e512642c97ca3f747f9a76e374fbda73f9292823c0313be9d78add7cdd8f72235af0c553dd26797e78e1854edee0ae002f8aba074b066dfce1af114e32f8");
-  int res = strcmp(test, result);
+  int res = strcmp(hash, result);
   printf("***TEST3_SHA512***\n");
-  printf("Produced result: \n\t %s \n", test);
+  printf("Produced result: \n\t %s \n", hash);
   printf("Expected result: \n\t %s \n", result);
   if (res == 0) {
     printf("TEST3_SHA512 passed!\n");

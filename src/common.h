@@ -16,8 +16,8 @@ odc-banknote-core
 // ------------------- Функции, доступные серверу банка ----------------
 
 // Новая банкнота
-// Разделить нициирование (new_banknote_init) + подпись(new_banknote_sign)
-void init_new_banknote (
+// Разделить инициирование (new_banknote_init) + подпись(new_banknote_sign)
+void BLOCK_HEADER_init(
     BLOCK_HEADER* banknote,
     UUID bank_id,
     UUID banknote_id,
@@ -26,16 +26,11 @@ void init_new_banknote (
     APPLICABILITY applicability
 );
 
-void sign_new_banknote (
+
+void BLOCK_HEADER_sign(
     BLOCK_HEADER* banknote,
     RSA* private_key
 );
-
-void concatenate_fields_for_hash(
-    BLOCK_HEADER* banknote,
-    char text[500]
-);
-
 
 
 // Добавить applicability новой банкноте
@@ -51,17 +46,18 @@ void concatenate_fields_for_hash(
 
 
 // Функция генерирования ключей
-KEYS_PAIR init_rsa_keys();
+KEYS_PAIR _init_rsa_keys();
 
 // Функция сохранения\загрузки ключей в\из файла
 
 // Функция генерирования UUID
-void generate_uuid(
+void _generate_uuid(
     UUID id
 );
 
+
 // Функция проверки
-int verify_signature_rsa4096(
+int _verify_signature_rsa4096(
     char* text,
     RSA* public_key,
     SIGN signature
@@ -69,7 +65,7 @@ int verify_signature_rsa4096(
 
 
 // Функция SIGN
-void get_signature_rsa4096(
+void _get_signature_rsa4096(
     char* text,
     RSA* private_key,
     SIGN signature
@@ -98,25 +94,32 @@ BANKNOTE_ODCB read_odcb_file(
 );
 
 // Функция генерации рандомной соли
-void generate_rand_salt(
+void _generate_rand_salt(
     SALT salt
 );
 
-// Функция хэша
-void get_hex_hash_sha512(
+// Функция взятия хэша
+void _get_hash_sha512(
     char* text, 
     HASH hash
 );
 
-void get_raw_hash_sha512(
-    char* text, 
-    unsigned char hash[SHA512_DIGEST_LENGTH]
+
+char* _add_zero_char(
+    char str_without_zero[], 
+    int str_size
 );
 
-void concatenate_fields(
-    char text[500],
+
+void _concatenate_fields(
+    char text[],
     const char* fmt, 
     ...
+);
+
+
+char* _int2arr(
+    int number
 );
 
 
@@ -139,8 +142,14 @@ void json2odcb(
 );
 
 
-void print_uuid(
+void _print_uuid(
     UUID id
+);
+
+
+void _print_hex(
+    char* arr, 
+    int size
 );
 
 

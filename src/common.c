@@ -13,12 +13,14 @@
 #include "common.h"
 
 /*
+    Здесь инициируем только первые поля (не все)
+    Рассчет размера:
     type(20) + bank_id (36) + banknote_id (36) + 
     code(9) + amount(?) + applicability(16) +
     sign_algorithm(20) + hash_algorithm(20) +
     salt(32) + hash(128) + bank_sign(512)
 */
-void init_new_banknote(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, CURRENCY_CODE code, MONEY_AMOUNT amount, APPLICABILITY applicability)
+void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, CURRENCY_CODE code, MONEY_AMOUNT amount, APPLICABILITY applicability)
 {
     
     BLOCK_TYPE type = {'h', 'e', 'a', 'd', 'e', 'r', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'};
@@ -35,92 +37,80 @@ void init_new_banknote(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, C
     strncpy(banknote->banknote_id, banknote_id, ID_SIZE);
     strncpy(banknote->code, code, CODE_SIZE);
     banknote->amount = amount;
-    printf("Amount 1:: %d\n", amount);
-    printf("Amount 2:: %d\n", banknote->amount);
 }
 
 
-void sign_new_banknote(BLOCK_HEADER* banknote, RSA* private_key)
-{
-    //print_uuid(banknote->bank_id);
-    
+/*
+    Заполняем оставшиеся поля + вычисление хэша + подпись
+    Для хэша конкатенируем следующие поля:
+        type
+        bank_id
+        banknote_id
+        code
+        amount
+        applicability
+        sign_algorithm
+        hash_algorithm
+        salt
+*/
+void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
+{    
     NAME_ALGORITHM hash_algorithm = {'S', 'H', 'A', '-', '5', '1', '2', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'};
     
     NAME_ALGORITHM sign_algorithm = {'R', 'S', 'A', '-', '4', '0', '9', '6', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'};
     
     SALT salt;
-    generate_rand_salt(salt);
-    //char* text;
-    //snprintf(text, 20, "%s", banknote.type);
+    _generate_rand_salt(salt);
     
     strcpy(banknote->sign_algorithm, sign_algorithm);
     strcpy(banknote->hash_algorithm, hash_algorithm);
     strcpy(banknote->salt, salt);
     
     char text[500];
-    concatenate_fields_for_hash(banknote, text);
+    
+    char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
+    char *bank_id_c_str = _add_zero_char(banknote->bank_id, ID_SIZE);
+    char *banknote_id_c_str = _add_zero_char(banknote->banknote_id, ID_SIZE);
+    char *code_c_str = _add_zero_char(banknote->code, CODE_SIZE);
+    char *applicability_c_str = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
+    char *sign_algorithm_c_str = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
+    char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
+    char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
+
+    _concatenate_fields(text, "ssssdssss",   type_c_str,
+                                            bank_id_c_str,
+                                            banknote_id_c_str,
+                                            code_c_str,
+                                            banknote->amount,
+                                            applicability_c_str,
+                                            sign_algorithm_c_str,
+                                            hash_algorithm_c_str,
+                                            salt_c_str);
+
+    free(type_c_str);
+    free(bank_id_c_str);
+    free(banknote_id_c_str);
+    free(code_c_str);
+    free(applicability_c_str);
+    free(sign_algorithm_c_str);
+    free(hash_algorithm_c_str);
+    free(salt_c_str);
+
     //printf("\nConcatenation: %s", text);
 
     HASH hash;
-    get_hex_hash_sha512(&text, hash);
+    _get_hash_sha512(&text, hash);
 
     strcpy(banknote->hash, hash);
+    strncpy(banknote->hash, hash, HASH_SIZE);
+
     SIGN signature;
-    get_signature_rsa4096(&text, private_key, signature);
+    _get_signature_rsa4096(&text, private_key, signature);
 
 }
 
-/*
-    type(20) + bank_id (36) + banknote_id (36) + 
-    code(9) + amount(?) + applicability(16) +
-    sign_algorithm(20) + hash_algorithm(20) +
-    salt(32)
-*/
-void concatenate_fields_for_hash(BLOCK_HEADER* banknote, char text[500])
-{
-    
-    int len = banknote->size - 128 - 512;
-    //printf("Size: %d nd %d \n", banknote->size, len);
 
-    char type[20];
-    snprintf(type, 21, "%s", banknote->type);
-
-    char bank_id[36];
-    snprintf(bank_id, 37, "%s", banknote->bank_id);
-
-    char banknote_id[36];
-    snprintf(banknote_id, 37, "%s", banknote->banknote_id);
-
-    char code[9];
-    snprintf(code, 10, "%s", banknote->code);
-
-    char applicability[16];
-    snprintf(applicability, 17, "%s", banknote->applicability);
-
-    char sign_algorithm[20];
-    snprintf(sign_algorithm, 21, "%s", banknote->sign_algorithm);
-
-    char hash_algorithm[20];
-    snprintf(hash_algorithm, 21, "%s", banknote->hash_algorithm);
-
-    char salt[32];
-    snprintf(salt, 33, "%s", banknote->salt);
-
-
-    snprintf(text, 500, "%s%s%s%s%d%s%s%s", type,
-                                            bank_id,
-                                            banknote_id,
-                                            code,
-                                            banknote->amount, 
-                                            sign_algorithm,
-                                            hash_algorithm,
-                                            salt);
-
-    //return &text;
-}
-
-
-KEYS_PAIR init_rsa_keys()
+KEYS_PAIR _init_rsa_keys()
 {
     
     BIGNUM* e = BN_new();
@@ -182,7 +172,7 @@ KEYS_PAIR init_rsa_keys()
 }
 
 //libuid
-void generate_uuid(UUID id) {
+void _generate_uuid(UUID id) {
     char items[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
     int prev_rand = (int)time(NULL);
@@ -202,51 +192,32 @@ void generate_uuid(UUID id) {
 }
 
 
-int verify_signature_rsa4096(char* text, RSA* public_key, SIGN signature)
+int _verify_signature_rsa4096(char* text, RSA* public_key, SIGN signature)
 {
     unsigned int signature_len = RSA_size(public_key);
     unsigned char hash[SHA512_DIGEST_LENGTH];
-    get_raw_hash_sha512(text, hash);
+    _get_hash_sha512(text, hash);
     int authentic = RSA_verify(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, &signature_len, public_key);
     return authentic;
 }
 
 
-void get_signature_rsa4096(char* text, RSA* private_key, SIGN signature)
+void _get_signature_rsa4096(char* text, RSA* private_key, SIGN signature)
 {
     unsigned int signature_len = RSA_size(private_key);
     unsigned char hash[SHA512_DIGEST_LENGTH];
-    get_raw_hash_sha512(text, hash);
+    _get_hash_sha512(text, hash);
     int res = RSA_sign(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, &signature_len, private_key);
 }
 
 
 void write_odcb_file(BLOCK_HEADER* banknote, FILE_PATH path)
 {
-    char fields[500];
 
-    concatenate_fields_for_hash(banknote, fields);
-    //printf("Fields: %s", fields);
-    char hash[64];
-    snprintf(hash, 65, "%s", banknote->hash);
-    //printf("has: %s\n", banknote->hash);
-    char signature[512];
-    snprintf(signature, 512, "%s", banknote->bank_sign);
-
-    char text[1000];
-    snprintf(text, 1000, "%s%s%s", fields, hash, signature);
-    //printf("Here:  %s\n", text);
-
-    /*FILE *fp = fopen(path, "w");
-    if (fp) {
-        fputs(text, fp);
-        fclose(fp);
-        printf("File has been written\n");
-    }*/
 }
 
 
-void generate_rand_salt(SALT salt)
+void _generate_rand_salt(SALT salt)
 {
     int prev_rand = (int)time(NULL);
     for (int i = 0; i < SALT_SIZE; ++i) {
@@ -258,13 +229,7 @@ void generate_rand_salt(SALT salt)
 }
 
 
-void get_hex_hash_sha512(char* text, HASH hash)
-{
-    get_raw_hash_sha512(text, hash);
-}
-
-
-void get_raw_hash_sha512(char* text, unsigned char hash[SHA512_DIGEST_LENGTH])
+void _get_hash_sha512(char* text, HASH hash)
 {
     SHA512_CTX sha512;
     SHA512_Init(&sha512);
@@ -272,50 +237,89 @@ void get_raw_hash_sha512(char* text, unsigned char hash[SHA512_DIGEST_LENGTH])
     SHA512_Final(hash, &sha512);
 }
 
+/*
+    Возвращает null terminated строку, необходимо для конкатенации
+*/
+char* _add_zero_char(char str_without_zero[], int str_size)
+{
+    char *str_with_zero = (char*)malloc((str_size + 1) * sizeof(char));
+    
+    for (int i = 0; i < str_size; ++i) {
+        str_with_zero[i] = str_without_zero[i];
+    }
+    
+    str_with_zero[str_size] = '\0';
 
-void concatenate_fields(char text[500], const char* fmt, ...)
+    return str_with_zero;
+}
+
+
+/*
+    Необходимо добавить проверка на размер
+*/
+void _concatenate_fields(char text[], const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
     int start = 0;
     while (*fmt != '\0') {
-        if (*fmt == 'c') {
+        if (*fmt == 's') {
             char *temp_raw = va_arg(args, char*);
-            ++fmt;
-
-            int len = va_arg(args, int);
-
-            char temp[len + 1];
-            snprintf(temp, len + 1, "%s", temp_raw);
             
+            int len = strlen(temp_raw);
             for (int i = 0; i < len; ++i) {
-                text[start+i] = temp[i];
+                
+                text[start + i] = temp_raw[i];
             }
-
             start += len;
-            //printf("text: %s\n", text);
 
-        } else if (*fmt == 'a') {
-            UINT amount_number = va_arg(args, UINT);
-            printf("Amount number: %d\n", amount_number);
-            //char *num = int2arr(amount_number);
-            //int amount_size = sizeof(num) / sizeof(num[0]);
-
-            //int n = log10(*amount_number) + 1;
-            //printf("Size4: %d\n", n);
+        } else if (*fmt == 'd') {
+            int amount_number = va_arg(args, int);
+            char *num = _int2arr(amount_number);
+            int len = strlen(num);
+            for (int i = 0; i < len; ++i) {
+                text[start + i] = num[i];
+            }
+            free(num);
+            start += len;
 
         }
         ++fmt;
     }
+
+    text[start] = '\0';
  
     va_end(args);
 }
 
 
-void print_uuid(UUID id)
+void _print_uuid(UUID id)
 {
     char text[36];
     snprintf(text, 37, "%s", id);
     printf("UUID: %s", text);
 }
 
+
+char* _int2arr(int number)
+{
+    int n = log10(number) + 1;
+    int i;
+    char *digits = calloc(n, sizeof(char));
+    for (i = n-1; i >= 0; --i, number /= 10) {
+        digits[i] = (number % 10) + '0';
+    }
+    return digits;
+}
+
+
+void _print_hex(char* arr, int size)
+{ 
+    printf("Raw format: ");
+
+    for (int i = 0; i < size; ++i) {
+        printf("%x ", arr[i] & 0xff);
+    }
+
+    printf("\n");
+}
