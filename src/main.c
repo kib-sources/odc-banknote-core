@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "cryptests.c"
+#include <common.h>
 
 int main()  
 {
@@ -24,9 +24,6 @@ int main()
 
     
     _print_hex(banknote.hash, HASH_SIZE);
-    
-    
-    setup_tests();
     
     
     return 0;  
