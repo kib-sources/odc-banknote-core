@@ -31,10 +31,11 @@ void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, C
                20 + 20 + 32 + 128 + 512;
 
     banknote->size = size;
+    banknote->count_append_applicability_blocks = 0;
     strncpy(banknote->applicability, applicability, APPLICABILITY_SIZE);
     strncpy(banknote->type, type, TYPE_SIZE);
-    strncpy(banknote->bank_id, bank_id, ID_SIZE);
-    strncpy(banknote->banknote_id, banknote_id, ID_SIZE);
+    strncpy(banknote->bin, bank_id, ID_SIZE);
+    strncpy(banknote->bnid, banknote_id, ID_SIZE);
     strncpy(banknote->code, code, CODE_SIZE);
     banknote->amount = amount;
 }
@@ -44,11 +45,12 @@ void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, C
     Заполняем оставшиеся поля + вычисление хэша + подпись
     Для хэша конкатенируем следующие поля:
         type
-        bank_id
-        banknote_id
+        bin
+        bnid
         code
         amount
         applicability
+        count_append_applicability_blocks
         sign_algorithm
         hash_algorithm
         salt
@@ -69,19 +71,20 @@ void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
     char text[500];
     
     char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
-    char *bank_id_c_str = _add_zero_char(banknote->bank_id, ID_SIZE);
-    char *banknote_id_c_str = _add_zero_char(banknote->banknote_id, ID_SIZE);
+    char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
+    char *banknote_id_c_str = _add_zero_char(banknote->bnid, ID_SIZE);
     char *code_c_str = _add_zero_char(banknote->code, CODE_SIZE);
     char *applicability_c_str = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
     char *sign_algorithm_c_str = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
     char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
     char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
 
-    _concatenate_fields(text, "ssssdssss",   type_c_str,
+    _concatenate_fields(text, "ssssddssss",  type_c_str,
                                             bank_id_c_str,
                                             banknote_id_c_str,
                                             code_c_str,
                                             banknote->amount,
+                                            banknote->count_append_applicability_blocks,
                                             applicability_c_str,
                                             sign_algorithm_c_str,
                                             hash_algorithm_c_str,
@@ -303,6 +306,11 @@ void _print_uuid(UUID id)
 
 char* _int2arr(int number)
 {
+    if (number == 0) {
+        char *digits = calloc(1, sizeof(char));
+        digits[0] = '0';
+        return digits;
+    }
     int n = log10(number) + 1;
     int i;
     char *digits = calloc(n, sizeof(char));

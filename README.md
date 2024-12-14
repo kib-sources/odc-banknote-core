@@ -50,5 +50,11 @@ Test project ~/build
 Total Test time (real) =   0.39 sec
 ```
 
+Запуск тестов (больше информации о тестах):
+
+```bash
+~$ ctest --test-dir build --verbose
+```
+
 ### Windows
 (Not supported yet)

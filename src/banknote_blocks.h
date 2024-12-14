@@ -48,13 +48,13 @@ typedef struct {
     BLOCK_SIZE size;
     BLOCK_TYPE type; // = {'h', 'e', 'a', 'd', 'e', 'r', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"header.............";
 
-    UUID bank_id;
-    UUID banknote_id;
+    UUID bin;
+    UUID bnid;
     CURRENCY_CODE code;
     MONEY_AMOUNT amount;
 
     APPLICABILITY applicability; // {'A', 'L', 'L', '-', '0', '0', '0', '0', '-', '0', '0', '0', '0', '0', '0'}; "ALL-0000-0000000";
-
+    UINT count_append_applicability_blocks;
     NAME_ALGORITHM sign_algorithm; // {'R', 'S', 'A', '-', '4', '0', '9', '6', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; "RSA-4096............";
     NAME_ALGORITHM hash_algorithm; //{'S', 'H', 'A', '-', '5', '1', '2', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; "SHA-512.............";
 
@@ -73,8 +73,8 @@ typedef struct {
     BLOCK_SIZE size;
     const BLOCK_TYPE type; //= {'a', 'p', 'p', 'e', 'n', 'd', '-', 'a', 'p', 'p', 'l', 'i', 'c', 'a', 'b', 'i', 'l', 'i', 't', 'y'}; //"append-applicability";
 
-    UUID bank_id;
-    UUID banknote_id;
+    UUID bin;
+    UUID bnid;
     // хеш предыдущего
     // BLOCK_HEADER или BLOCK_APPEND_APPLICABILITY
     HASH parent_hash;
@@ -87,7 +87,6 @@ typedef struct {
     HASH hash;
 
     SIGN bank_sign;
-
 
 } BLOCK_APPEND_APPLICABILITY;
 
@@ -127,8 +126,8 @@ typedef struct{
     BLOCK_SIZE size;
     const BLOCK_TYPE type;// = {'c', 'h', 'a', 'i', 'n', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"chain...............";
 
-    UUID bank_id;
-    UUID banknote_id;
+    UUID bin;
+    UUID bnid;
 
     // хеш предыдущего
     // BLOCK_CHAIN или BLOCK_HEADER или BLOCK_APPEND_APPLICABILITY
@@ -176,30 +175,6 @@ typedef struct{
 
 typedef struct{
     BLOCK_SIZE size;
-    const BLOCK_TYPE type; // = {'s', 'w', 'a', 'p', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"swap................";
-
-    UUID banknote_id;
-    UUID bank_id;
-
-    // хеш последнего "слева" блока перед схлопыванием сервером
-    // BLOCK_CHAIN или BLOCK_HEADER
-    HASH parent_left;
-
-    // хеш первого "справа" блока перед схлопыванием сервером
-    // BLOCK_CHAIN или BLOCK_HEADER
-    HASH parent_right;
-
-    SALT salt;
-    // HASH hash = hash(bank_id, banknote_id, parent_left, parent_right, salt)
-    HASH hash;
-    SIGN hash_by_bpk;
-
-} BLOCK_SWAP;
-
-
-
-typedef struct{
-    BLOCK_SIZE size;
     const BLOCK_TYPE type; // = {'t', 'a', 'i', 'l', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"tail................";
     COMMENT_FIELD tail_comment;
 } BLOCK_TAIL;
@@ -208,4 +183,4 @@ typedef struct{
 
 static const char _TAIL_COMMENT_PREFIX[70] = "See https://github.com/kib-sources/odc-banknote-core, KIB(c)";
 
-#endif
+#endif ODC_BANKNOTE_BLOCKS_H

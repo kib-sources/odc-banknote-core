@@ -20,6 +20,7 @@ void test_concatenation()
 }
 
 
+
 int main(void)
 {
     UNITY_BEGIN();
