@@ -68,7 +68,7 @@ void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
     strcpy(banknote->hash_algorithm, hash_algorithm);
     strcpy(banknote->salt, salt);
     
-    char text[500];
+    
     
     char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
     char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
@@ -79,16 +79,17 @@ void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
     char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
     char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
 
-    _concatenate_fields(text, "ssssddssss",  type_c_str,
-                                            bank_id_c_str,
-                                            banknote_id_c_str,
-                                            code_c_str,
-                                            banknote->amount,
-                                            banknote->count_append_applicability_blocks,
-                                            applicability_c_str,
-                                            sign_algorithm_c_str,
-                                            hash_algorithm_c_str,
-                                            salt_c_str);
+    char* concatenated_text = _concatenate_fields("ssssddssss", type_c_str,
+                                                                bank_id_c_str,
+                                                                banknote_id_c_str,
+                                                                code_c_str,
+                                                                banknote->amount,
+                                                                banknote->count_append_applicability_blocks,
+                                                                applicability_c_str,
+                                                                sign_algorithm_c_str,
+                                                                hash_algorithm_c_str,
+                                                                salt_c_str);
+    
 
     free(type_c_str);
     free(bank_id_c_str);
@@ -102,14 +103,15 @@ void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
     //printf("\nConcatenation: %s", text);
 
     HASH hash;
-    _get_hash_sha512(&text, hash);
+    _get_hash_sha512(&concatenated_text, hash);
 
     strcpy(banknote->hash, hash);
     strncpy(banknote->hash, hash, HASH_SIZE);
 
     SIGN signature;
-    _get_signature_rsa4096(&text, private_key, signature);
+    _get_signature_rsa4096(&concatenated_text, private_key, signature);
 
+    free(concatenated_text);
 }
 
 
@@ -220,14 +222,28 @@ void write_odcb_file(BLOCK_HEADER* banknote, FILE_PATH path)
 }
 
 
+unsigned int _produce_random_byte() {
+    union {
+        unsigned int i;
+        unsigned char c[sizeof(unsigned int)];
+    } u;
+
+    int limit = 255;
+
+    do {
+        if (!RAND_bytes(u.c, sizeof(u.c))) {
+            fprintf(stderr, "Can't get random bytes!\n");
+            exit(1);
+        }
+    } while (u.i < (-limit % limit)); 
+    return u.i % limit;
+}
+
+
 void _generate_rand_salt(SALT salt)
 {
-    int prev_rand = (int)time(NULL);
     for (int i = 0; i < SALT_SIZE; ++i) {
-        srand(prev_rand);
-        salt[i] = rand() % 255;
-        prev_rand ^= rand();
-        prev_rand += salt[i];
+        salt[i] = _produce_random_byte();
     }
 }
 
@@ -257,42 +273,54 @@ char* _add_zero_char(char str_without_zero[], int str_size)
 }
 
 
-/*
-    Необходимо добавить проверка на размер
-*/
-void _concatenate_fields(char text[], const char* fmt, ...)
+char* _concatenate_fields(const char* fmt, ...)
 {
+    char *ptr = (char *)calloc(1000, sizeof(char));
+
     va_list args;
     va_start(args, fmt);
-    int start = 0;
+
+    int ind_start = 0;
+
     while (*fmt != '\0') {
         if (*fmt == 's') {
             char *temp_raw = va_arg(args, char*);
             
             int len = strlen(temp_raw);
+            if (ind_start >= 1000) {
+                ptr = (char *)realloc(ptr, ind_start + 100);
+            }
             for (int i = 0; i < len; ++i) {
                 
-                text[start + i] = temp_raw[i];
+                ptr[ind_start + i] = temp_raw[i];
             }
-            start += len;
 
+            ind_start += len;
         } else if (*fmt == 'd') {
             int amount_number = va_arg(args, int);
+
             char *num = _int2arr(amount_number);
             int len = strlen(num);
+
+            if (ind_start >= 1000) {
+                ptr = (char *)realloc(ptr, ind_start + 100);
+            }
             for (int i = 0; i < len; ++i) {
-                text[start + i] = num[i];
+                ptr[ind_start + i] = num[i];
             }
             free(num);
-            start += len;
 
+            ind_start += len;
         }
         ++fmt;
     }
 
-    text[start] = '\0';
+    ptr = (char *)realloc(ptr, ind_start + 1);
+    ptr[ind_start] = '\0';
  
     va_end(args);
+
+    return ptr;
 }
 
 

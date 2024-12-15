@@ -21,6 +21,8 @@ odc-banknote-core
 
 #include <openssl/evp.h>
 
+typedef RSA* KEY;
+
 typedef long long INT;
 typedef unsigned long long UINT;
 

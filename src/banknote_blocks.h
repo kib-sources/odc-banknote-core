@@ -122,7 +122,7 @@ typedef struct {
 
 
 
-typedef struct{
+typedef struct {
     BLOCK_SIZE size;
     const BLOCK_TYPE type;// = {'c', 'h', 'a', 'i', 'n', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"chain...............";
 
@@ -134,7 +134,8 @@ typedef struct{
     HASH parent_hash;
 
     // [sok_a](bpk) подпись отправителя 
-    SIGN sokA_by_bpk;
+    // KEY sok_owner -- высчитывается из sok_owner_by_bpk через bok
+    SIGN sok_owner_by_bpk;
 
     UINT counter;
 
@@ -142,7 +143,7 @@ typedef struct{
 
     // HASH hash0 = hash(bank_id, banknote_id, parent_hash, sokA_by_bpk, counter, salt)
     HASH hash0;
-    SIGN hash0_spkB;
+    SIGN hash0_spk_owner;
 
     SALT salt;
 
@@ -150,7 +151,7 @@ typedef struct{
     HASH hash;
 
     // Подпись хеша
-    SIGN hash_by_spkA;
+    SIGN hash_by_spk_or_bpk_previous_owner;
 
 
     // ------------------
@@ -158,13 +159,19 @@ typedef struct{
     // при ОНЛАЙН платеже
     SALT salt_bank;// = {'0'};
     HASH hash_bank;// = {'0'};
-    SIGN hash_bank_by_bpk; //= {'0'};
-    
+    SIGN hash_bank_by_bpk; //= {'0'};    
 
 } BLOCK_CHAIN;
 
+//Замена BLOCK_SWAP
+typedef struct {
+    BLOCK_SIZE size;
+    const BLOCK_TYPE type; //"gap.................";
+    
+} BLOCK_GAP;
 
-typedef struct{
+
+typedef struct {
     BLOCK_SIZE size;
     const BLOCK_TYPE type; //{'c', 'o', 'm', 'm', 'e', 'n', 't', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"comment.............";
 
@@ -173,7 +180,7 @@ typedef struct{
 } BLOCK_COMMENT;
 
 
-typedef struct{
+typedef struct {
     BLOCK_SIZE size;
     const BLOCK_TYPE type; // = {'t', 'a', 'i', 'l', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"tail................";
     COMMENT_FIELD tail_comment;

@@ -93,10 +93,13 @@ BANKNOTE_ODCB read_odcb_file(
     FILE_PATH path
 );
 
+unsigned int _produce_random_byte();
+
 // Функция генерации рандомной соли
 void _generate_rand_salt(
     SALT salt
 );
+
 
 // Функция взятия хэша
 void _get_hash_sha512(
@@ -111,8 +114,8 @@ char* _add_zero_char(
 );
 
 
-void _concatenate_fields(
-    char text[],
+
+char* _concatenate_fields(
     const char* fmt, 
     ...
 );
@@ -121,6 +124,7 @@ void _concatenate_fields(
 char* _int2arr(
     int number
 );
+
 
 
 // ----------------------- Удобные дополнительные функции для отладки и сериализации --------------------------------
