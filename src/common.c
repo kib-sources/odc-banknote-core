@@ -4,12 +4,14 @@
 #include <stdint.h>
 #include <math.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 #include <openssl/sha.h>
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
+
 #include "common.h"
 
 /*
@@ -20,15 +22,15 @@
     sign_algorithm(20) + hash_algorithm(20) +
     salt(32) + hash(128) + bank_sign(512)
 */
-void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, CURRENCY_CODE code, MONEY_AMOUNT amount, APPLICABILITY applicability)
+void BLOCK_HEADER_init(BLOCK_HEADER *banknote, UUID bank_id, UUID banknote_id, CURRENCY_CODE code, MONEY_AMOUNT amount, APPLICABILITY applicability, UUID owner_id)
 {
     
     BLOCK_TYPE type = {'h', 'e', 'a', 'd', 'e', 'r', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'};
         
     int amount_size = log(amount);
 
-    int size = 20 + 36 + 36 + 9 + amount_size + 16 +
-               20 + 20 + 32 + 128 + 512;
+    int size = TYPE_SIZE + ID_SIZE + ID_SIZE + CODE_SIZE + amount_size + APPLICABILITY_SIZE +
+               NAME_ALGORITHM_SIZE + NAME_ALGORITHM_SIZE + SALT_SIZE + HASH_SIZE + SIGN_SIZE + KEY_SIZE + ID_SIZE;
 
     banknote->size = size;
     banknote->count_append_applicability_blocks = 0;
@@ -36,6 +38,7 @@ void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, C
     strncpy(banknote->type, type, TYPE_SIZE);
     strncpy(banknote->bin, bank_id, ID_SIZE);
     strncpy(banknote->bnid, banknote_id, ID_SIZE);
+    strncpy(banknote->owner, owner_id, ID_SIZE);
     strncpy(banknote->code, code, CODE_SIZE);
     banknote->amount = amount;
 }
@@ -43,19 +46,8 @@ void BLOCK_HEADER_init(BLOCK_HEADER* banknote, UUID bank_id, UUID banknote_id, C
 
 /*
     Заполняем оставшиеся поля + вычисление хэша + подпись
-    Для хэша конкатенируем следующие поля:
-        type
-        bin
-        bnid
-        code
-        amount
-        applicability
-        count_append_applicability_blocks
-        sign_algorithm
-        hash_algorithm
-        salt
 */
-void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
+void BLOCK_HEADER_sign(BLOCK_HEADER *banknote, KEYS_PAIR rsa_pem_keys)
 {    
     NAME_ALGORITHM hash_algorithm = {'S', 'H', 'A', '-', '5', '1', '2', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'};
     
@@ -63,122 +55,143 @@ void BLOCK_HEADER_sign(BLOCK_HEADER* banknote, RSA* private_key)
     
     SALT salt;
     _generate_rand_salt(salt);
-    
-    strcpy(banknote->sign_algorithm, sign_algorithm);
-    strcpy(banknote->hash_algorithm, hash_algorithm);
-    strcpy(banknote->salt, salt);
-    
-    
-    
-    char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
-    char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
-    char *banknote_id_c_str = _add_zero_char(banknote->bnid, ID_SIZE);
-    char *code_c_str = _add_zero_char(banknote->code, CODE_SIZE);
-    char *applicability_c_str = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
-    char *sign_algorithm_c_str = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
-    char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
-    char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
 
-    char* concatenated_text = _concatenate_fields("ssssddssss", type_c_str,
-                                                                bank_id_c_str,
-                                                                banknote_id_c_str,
-                                                                code_c_str,
-                                                                banknote->amount,
-                                                                banknote->count_append_applicability_blocks,
-                                                                applicability_c_str,
-                                                                sign_algorithm_c_str,
-                                                                hash_algorithm_c_str,
-                                                                salt_c_str);
-    
+    strncpy(banknote->sign_algorithm, sign_algorithm, NAME_ALGORITHM_SIZE);
+    strncpy(banknote->hash_algorithm, hash_algorithm, NAME_ALGORITHM_SIZE);
+    strncpy(banknote->salt, salt, SALT_SIZE);
+    banknote->bok = rsa_pem_keys.public;
 
-    free(type_c_str);
-    free(bank_id_c_str);
-    free(banknote_id_c_str);
-    free(code_c_str);
-    free(applicability_c_str);
-    free(sign_algorithm_c_str);
-    free(hash_algorithm_c_str);
-    free(salt_c_str);
-
-    //printf("\nConcatenation: %s", text);
+    char *concatenated_text = BLOCK_HEADER_concatenate_fields_for_hash(banknote);
 
     HASH hash;
-    _get_hash_sha512(&concatenated_text, hash);
+    _get_hash_sha512(concatenated_text, hash);
 
-    strcpy(banknote->hash, hash);
     strncpy(banknote->hash, hash, HASH_SIZE);
 
     SIGN signature;
-    _get_signature_rsa4096(&concatenated_text, private_key, signature);
+    RSA *private_key = pem_to_rsa_private_key(rsa_pem_keys.private.pem_key);
+
+    _get_signature_rsa4096(concatenated_text, private_key, signature);
+    
+    for (int i = 0; i < SIGN_SIZE; ++i) {
+        banknote->bank_sign[i] = signature[i];
+    }
 
     free(concatenated_text);
 }
 
 
+int BLOCK_HEADER_verify(BLOCK_HEADER *banknote)
+{
+    RSA *public_rsa = pem_to_rsa_public_key(banknote->bok.pem_key);
+
+    char *plain_text = BLOCK_HEADER_concatenate_fields_for_hash(banknote);
+
+    SIGN sign;
+    for (int i = 0; i < SIGN_SIZE; ++i) {
+        sign[i] = banknote->bank_sign[i];
+    }
+
+    int verify_status = _verify_signature_rsa4096(plain_text, public_rsa, sign);
+   
+    RSA_free(public_rsa);
+
+    return verify_status;
+}
+
+
 KEYS_PAIR _init_rsa_keys()
 {
-    
-    BIGNUM* e = BN_new();
+    BIGNUM *e = BN_new();
     int ret = BN_set_word(e, RSA_F4);
     
     int bits = 4096;
-    RSA* rsa_key = RSA_new();
+    RSA *rsa_key = RSA_new();
     RSA_generate_key_ex(rsa_key, bits, e, NULL); 
-    BIO *bp_public  = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPublicKey (bp_public, rsa_key);
     
-    BIO *bp_private = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPrivateKey(bp_private, rsa_key, NULL, NULL, 0, NULL, NULL);
+    BIO *bio_private = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPrivateKey(bio_private, rsa_key, NULL, NULL, 0, NULL, NULL);
 
-    int pri_len = BIO_pending(bp_private);
-    int pub_len = BIO_pending(bp_public);
-    char *pri_key = (char*) malloc(pri_len + 1);
-    char *pub_key = (char*) malloc(pub_len + 1);
+    int private_key_pem_len = BIO_pending(bio_private);
 
-    BIO_read(bp_private, pri_key, pri_len); 
-    BIO_read(bp_public, pub_key, pub_len);
+    char *private_key_pem = (char *)calloc(private_key_pem_len + 1, sizeof(char));
+    BIO_read(bio_private, private_key_pem, private_key_pem_len); 
+    private_key_pem[private_key_pem_len] = '\0';
 
-    pri_key[pri_len] = '\0';
-    pub_key[pub_len] = '\0';
 
-    //printf("\n%s\n:\n%s\n", pri_key, pub_key);
+    BIGNUM *n = NULL;
+    e = NULL;
+    RSA_get0_key(rsa_key, &n, &e, NULL);
 
-    BIO *pb_key_bio = NULL;
-    pb_key_bio = BIO_new_mem_buf((void*) pub_key, pub_len);
-    BIO *prkeybio = NULL;
-    prkeybio=BIO_new_mem_buf((void*) pri_key, pri_len);
+    RSA *public_key = RSA_new();
+    RSA_set0_key(public_key, BN_dup(n), BN_dup(e), NULL);
 
-    RSA *pb_rsa = NULL;
-    RSA *p_rsa = NULL;
+    BIO *bio_public = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSA_PUBKEY(bio_public, public_key);
 
-    pb_rsa = PEM_read_bio_RSAPublicKey(pb_key_bio, &pb_rsa, NULL, NULL);
-    p_rsa = PEM_read_bio_RSAPrivateKey(prkeybio, &p_rsa, NULL, NULL);
+    int public_key_pem_len = BIO_pending(bio_public);
 
-    EVP_PKEY *evp_pbkey = EVP_PKEY_new();
-    EVP_PKEY_assign_RSA(evp_pbkey, pb_rsa);
+    char *public_key_pem = (char *)calloc(public_key_pem_len + 1, sizeof(char));
+    BIO_read(bio_public, public_key_pem, public_key_pem_len); 
+    public_key_pem[public_key_pem_len] = '\0';
 
-    EVP_PKEY *evp_prkey = EVP_PKEY_new();
-    EVP_PKEY_assign_RSA(evp_prkey, p_rsa);
+    //printf("%d\n %d\n", private_key_pem_len, public_key_pem_len);
 
-    free(pri_key);
-    free(pub_key);
-    BIO_free_all(bp_public);
-    BIO_free_all(bp_private);
-    BIO_free(pb_key_bio);
-    BIO_free(prkeybio);
+
+    PEM_KEY pem_pr_key;
+    pem_pr_key.pem_key = private_key_pem;
+    pem_pr_key.len = private_key_pem_len;
+    PEM_KEY pem_pb_key;
+    pem_pb_key.pem_key = public_key_pem;
+    pem_pb_key.len = public_key_pem_len;
+
+    KEYS_PAIR rsa_pair;
+    rsa_pair.private = pem_pr_key;
+    rsa_pair.public = pem_pb_key;
+    //printf("%d\n %d\n", rsa_pair.private.len, rsa_pair.public.len);
+    //printf("%s\n %s\n", rsa_pair.private.pem_key, rsa_pair.public.pem_key);
+
+    BIO_free_all(bio_public);
+    BIO_free_all(bio_private);
     BN_free(e);
-    RSA_free(rsa_key);
+    BN_free(n);
 
-    KEYS_PAIR keys;
-    keys.private = p_rsa;
-    keys.public = pb_rsa;
-
-    return keys;
+    return rsa_pair;
 }
 
-//libuid
+
+RSA *pem_to_rsa_private_key(char *pem_key)
+{
+    BIO *bio = BIO_new_mem_buf((void *)pem_key, -1);
+    
+    RSA *rsa = NULL;
+    rsa = PEM_read_bio_RSAPrivateKey(bio, &rsa, NULL, NULL);  
+    
+    BIO_free(bio);
+
+    return rsa;
+}
+
+
+RSA *pem_to_rsa_public_key(char *pem_key)
+{
+    BIO *bio = BIO_new_mem_buf((void*)pem_key, -1);
+    
+    //Для -----BEGIN RSA PUBLIC KEY-----
+    //RSA *rsa = NULL;
+    //rsa = PEM_read_bio_RSAPublicKey(bio, &rsa, NULL, NULL);  
+    
+    //Для -----BEGIN PUBLIC KEY-----
+    RSA *rsa = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
+
+    BIO_free(bio);
+
+    return rsa;
+}
+
+
 void _generate_uuid(UUID id) {
-    char items[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    /*char items[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
     int prev_rand = (int)time(NULL);
     
@@ -193,30 +206,43 @@ void _generate_uuid(UUID id) {
     id[8] = '-';
     id[13] = '-';
     id[18] = '-';
-    id[23] = '-';
+    id[23] = '-';*/
+
+    uuid_t uuid;
+
+    uuid_generate(uuid);
+
+    uuid_unparse(uuid, id);
+
+    //printf("Generated UUID: %s\n", id);
 }
 
 
-int _verify_signature_rsa4096(char* text, RSA* public_key, SIGN signature)
+int _verify_signature_rsa4096(char *text, RSA *public_key, SIGN signature)
 {
-    unsigned int signature_len = RSA_size(public_key);
-    unsigned char hash[SHA512_DIGEST_LENGTH];
+    unsigned int signature_len = SIGN_SIZE;
+    
+    HASH hash;
     _get_hash_sha512(text, hash);
-    int authentic = RSA_verify(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, &signature_len, public_key);
+
+    int authentic = RSA_verify(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, signature_len, public_key);
+    
     return authentic;
 }
 
 
-void _get_signature_rsa4096(char* text, RSA* private_key, SIGN signature)
+void _get_signature_rsa4096(char *text, RSA *private_key, SIGN signature)
 {
-    unsigned int signature_len = RSA_size(private_key);
-    unsigned char hash[SHA512_DIGEST_LENGTH];
+    unsigned int signature_len = 0;
+    
+    HASH hash;
     _get_hash_sha512(text, hash);
-    int res = RSA_sign(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, &signature_len, private_key);
+    
+    int res = RSA_sign(NID_sha512, hash, SHA512_DIGEST_LENGTH, signature, (unsigned int *)&signature_len, private_key);
 }
 
 
-void write_odcb_file(BLOCK_HEADER* banknote, FILE_PATH path)
+void write_odcb_file(BLOCK_HEADER *banknote, FILE_PATH path)
 {
 
 }
@@ -248,7 +274,7 @@ void _generate_rand_salt(SALT salt)
 }
 
 
-void _get_hash_sha512(char* text, HASH hash)
+void _get_hash_sha512(char *text, HASH hash)
 {
     SHA512_CTX sha512;
     SHA512_Init(&sha512);
@@ -259,9 +285,9 @@ void _get_hash_sha512(char* text, HASH hash)
 /*
     Возвращает null terminated строку, необходимо для конкатенации
 */
-char* _add_zero_char(char str_without_zero[], int str_size)
+char *_add_zero_char(char str_without_zero[], int str_size)
 {
-    char *str_with_zero = (char*)malloc((str_size + 1) * sizeof(char));
+    char *str_with_zero = (char *)malloc((str_size + 1) * sizeof(char));
     
     for (int i = 0; i < str_size; ++i) {
         str_with_zero[i] = str_without_zero[i];
@@ -272,8 +298,72 @@ char* _add_zero_char(char str_without_zero[], int str_size)
     return str_with_zero;
 }
 
+/*
+    Для хэша конкатенируем следующие поля:
+        type
+        bin
+        bnid
+        code
+        amount
+        applicability
+        count_append_applicability_blocks
+        sign_algorithm
+        hash_algorithm
+        salt
+*/
+char *BLOCK_HEADER_concatenate_fields_for_hash(BLOCK_HEADER *banknote)
+{
+    char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
+    char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
+    char *banknote_id_c_str = _add_zero_char(banknote->bnid, ID_SIZE);
+    char *owner_id_c_str = _add_zero_char(banknote->owner, ID_SIZE);
+    char *code_c_str = _add_zero_char(banknote->code, CODE_SIZE);
+    char *applicability_c_str = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
+    char *sign_algorithm_c_str = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
+    char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
+    char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
 
-char* _concatenate_fields(const char* fmt, ...)
+    char *concatenated_text = _concatenate_fields("sssssddssss", type_c_str,
+                                                          bank_id_c_str,
+                                                          banknote_id_c_str,
+                                                          owner_id_c_str,
+                                                          code_c_str,
+                                                          banknote->amount,
+                                                          banknote->count_append_applicability_blocks,
+                                                          applicability_c_str,
+                                                          sign_algorithm_c_str,
+                                                          hash_algorithm_c_str,
+                                                          salt_c_str);
+    
+  
+    free(type_c_str);
+    free(bank_id_c_str);
+    free(banknote_id_c_str);
+    free(code_c_str);
+    free(applicability_c_str);
+    free(sign_algorithm_c_str);
+    free(hash_algorithm_c_str);
+    free(salt_c_str);
+
+
+    return concatenated_text;
+}
+
+
+char *BLOCK_HEADER_concatenate_all_fields(BLOCK_HEADER *banknote)
+{
+
+    char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
+    char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
+
+    char *concatenated_text = _concatenate_fields("ss", type_c_str,
+                                                          bank_id_c_str);
+
+    return concatenated_text;
+}
+
+
+char *_concatenate_fields(const char *fmt, ...)
 {
     char *ptr = (char *)calloc(1000, sizeof(char));
 
@@ -284,11 +374,11 @@ char* _concatenate_fields(const char* fmt, ...)
 
     while (*fmt != '\0') {
         if (*fmt == 's') {
-            char *temp_raw = va_arg(args, char*);
+            char *temp_raw = va_arg(args, char *);
             
             int len = strlen(temp_raw);
-            if (ind_start >= 1000) {
-                ptr = (char *)realloc(ptr, ind_start + 100);
+            if (ind_start + len >= 1000) {
+                ptr = (char *)realloc(ptr, ind_start + len + 1);
             }
             for (int i = 0; i < len; ++i) {
                 
@@ -299,11 +389,11 @@ char* _concatenate_fields(const char* fmt, ...)
         } else if (*fmt == 'd') {
             int amount_number = va_arg(args, int);
 
-            char *num = _int2arr(amount_number);
+            char *num = _int_2_arr(amount_number);
             int len = strlen(num);
 
-            if (ind_start >= 1000) {
-                ptr = (char *)realloc(ptr, ind_start + 100);
+            if (ind_start + len >= 1000) {
+                ptr = (char *)realloc(ptr, ind_start + len + 1);
             }
             for (int i = 0; i < len; ++i) {
                 ptr[ind_start + i] = num[i];
@@ -324,15 +414,91 @@ char* _concatenate_fields(const char* fmt, ...)
 }
 
 
+void _hex_2_bytes(char *hex_str, BYTE *bytes, int size)
+{
+    for (int i = 0; i < size; i++) {
+        char temp[3] = {hex_str[i * 2], hex_str[i * 2 + 1], '\0'};
+        bytes[i] = (unsigned char)strtol(temp, NULL, 16); 
+    }
+}
+
+
+unsigned char *_bytes_2_hex(BYTE* bytes, int size)
+{
+    unsigned char *hex_str = calloc(size * 2, sizeof(unsigned char));
+    
+    for(int i = 0; i < size; i++) {
+        sprintf(hex_str + (i * 2), "%02x", bytes[i]);
+    }
+
+    return hex_str;
+}
+
+
+unsigned char _decode_base64_char(char c) {
+    if (c >= 'A' && c <= 'Z') {
+        return c - 'A';
+    }
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 26;
+    }
+    if (c >= '0' && c <= '9') {
+        return c - '0' + 52;
+    }
+    if (c == '+') {
+        return 62;
+    }
+    if (c == '/') {
+        return 63;
+    }
+    return 255; // Invalid character
+}
+
+
+BYTE * _base64_2_bytes(char *base64_str, size_t *decoded_len)
+{
+    size_t len = strlen(base64_str);
+
+    if (len % 4 != 0) {
+        printf("Invalid Base64 string length.\n");
+        return NULL;
+    }
+
+    size_t padding = 0;
+    if (len >= 2 && base64_str[len - 1] == '=') {
+        padding++;
+    }
+    if (len >= 3 && base64_str[len - 2] == '=') {
+        padding++;
+    }
+
+    *decoded_len = (len / 4) * 3 - padding;
+
+    BYTE *decoded = calloc(*decoded_len, sizeof(BYTE *));
+    size_t j = 0;
+    for (size_t i = 0; i < len; i += 4) {
+        uint32_t sextet = (_decode_base64_char(base64_str[i]) << 18) |
+                          (_decode_base64_char(base64_str[i + 1]) << 12) |
+                          (_decode_base64_char(base64_str[i + 2]) << 6) |
+                          _decode_base64_char(base64_str[i + 3]);
+        if (j < *decoded_len) decoded[j++] = (sextet >> 16) & 0xFF;
+        if (j < *decoded_len) decoded[j++] = (sextet >> 8) & 0xFF;
+        if (j < *decoded_len) decoded[j++] = sextet & 0xFF;
+    }
+
+    return decoded;
+}
+
+
 void _print_uuid(UUID id)
 {
-    char text[36];
+    char text[37];
     snprintf(text, 37, "%s", id);
     printf("UUID: %s", text);
 }
 
 
-char* _int2arr(int number)
+char *_int_2_arr(int number)
 {
     if (number == 0) {
         char *digits = calloc(1, sizeof(char));
@@ -349,13 +515,70 @@ char* _int2arr(int number)
 }
 
 
-void _print_hex(char* arr, int size)
+void _print_hex(BYTE *bytes, int size)
 { 
     printf("Raw format: ");
 
     for (int i = 0; i < size; ++i) {
-        printf("%x ", arr[i] & 0xff);
+        printf("%x ", bytes[i] & 0xff);
     }
 
     printf("\n");
+}
+
+
+void _print_banknote_header(BLOCK_HEADER *banknote)
+{
+    printf("Size:\n");
+    printf("\t%d\n", banknote->size);
+
+    printf("Type:\n");
+    char *b_type = _add_zero_char(banknote->type, TYPE_SIZE);
+    printf("\t%s\n", b_type);
+
+    printf("Bin:\n");
+    char *b_bin = _add_zero_char(banknote->bin, ID_SIZE);
+    printf("\t%s\n", b_bin);
+
+    printf("Bnid:\n");
+    char *b_bnid = _add_zero_char(banknote->bnid, ID_SIZE);
+    printf("\t%s\n", b_bnid);
+
+    printf("Owner:\n");
+    char *b_owner = _add_zero_char(banknote->owner, ID_SIZE);
+    printf("\t%s\n", b_owner);
+
+    printf("Code:\n");
+    char *b_code = _add_zero_char(banknote->code, CODE_SIZE);
+    printf("\t%s\n", b_code);
+
+    printf("Amount:\n");
+    printf("\t%d\n", banknote->amount);
+
+    printf("Applicability:\n");
+    char *b_applicability = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
+    printf("\t%s\n", b_applicability);
+    
+    printf("Count_append_applicability_blocks:\n");
+    printf("\t%d\n", banknote->count_append_applicability_blocks);
+
+    printf("Sign_algorithm:\n");
+    char *b_sign_algorithm = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
+    printf("\t%s\n", b_sign_algorithm);
+
+    printf("Hash_algorithm:\n");
+    char *b_hash_algorithm = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
+    printf("\t%s\n", b_hash_algorithm);
+
+    printf("Salt:\n\t");
+    _print_hex(banknote->salt, SALT_SIZE);
+
+    printf("Hash:\n\t");
+    _print_hex(banknote->hash, HASH_SIZE);
+
+    printf("Bank_sign:\n\t");
+    _print_hex(banknote->bank_sign, SIGN_SIZE);
+
+    printf("Bok:\n");
+    printf("%s\n", banknote->bok);
 }

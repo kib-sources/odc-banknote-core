@@ -21,6 +21,18 @@
 ## Сборка проекта 
 ### Linux 
 
+Должна быть установлена библиотека OpenSSL:
+```bash
+~$ sudo apt-get install libssl-dev
+```
+
+Должна быть установлена библиотека uuid:
+```bash
+~$ sudo apt-get install uuid-dev
+```
+
+
+
 В корне проекта создаём папку `build`:
 
 ```bash

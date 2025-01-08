@@ -50,6 +50,7 @@ typedef struct {
 
     UUID bin;
     UUID bnid;
+    UUID owner;
     CURRENCY_CODE code;
     MONEY_AMOUNT amount;
 
@@ -62,8 +63,9 @@ typedef struct {
 
     HASH hash;
 
-    SIGN bank_sign;
+    PEM_KEY bok;
 
+    SIGN bank_sign;
 } BLOCK_HEADER;
 
 
@@ -185,7 +187,6 @@ typedef struct {
     const BLOCK_TYPE type; // = {'t', 'a', 'i', 'l', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.'}; //"tail................";
     COMMENT_FIELD tail_comment;
 } BLOCK_TAIL;
-
 
 
 static const char _TAIL_COMMENT_PREFIX[70] = "See https://github.com/kib-sources/odc-banknote-core, KIB(c)";

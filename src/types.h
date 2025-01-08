@@ -18,10 +18,9 @@ odc-banknote-core
 #define HASH_SIZE 64
 #define BLOCK_TYPE_SIZE 20
 #define SALT_SIZE 32
+#define KEY_SIZE 512
 
 #include <openssl/evp.h>
-
-typedef RSA* KEY;
 
 typedef long long INT;
 typedef unsigned long long UINT;
@@ -83,18 +82,21 @@ typedef BYTE SIGN[512];
 // Хеш в байтах
 typedef BYTE HASH[64];
 
-
 // Тип записываемого блока
 typedef char BLOCK_TYPE[20];
-
 
 // magic переменная выступающая в качестве соли для хеша
 
 typedef BYTE SALT[SALT_SIZE];
 
 typedef struct {
-    RSA* public;
-    RSA* private;
+    char *pem_key;
+    int len;
+} PEM_KEY;
+
+typedef struct {
+    PEM_KEY public;
+    PEM_KEY private;
 } KEYS_PAIR;
 
 #endif /* ODC_TYPES_H */
