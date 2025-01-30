@@ -15,22 +15,19 @@ odc-banknote-core
 
 
 // Структура, содержащая указатели на функции по работе с *.odcb файлами
-struct BANKNOTE_ODCB{
-
-
-
+typedef struct{
     // Сами данные
     // blocks -- совокупность указателей на блоки
     // Последний блок -- BLOCK_TAIL
     BLOCKS blocks;
-
-
-};
-
+} BANKNOTE_ODCB;
 
 
 
 
+/*
+префикс файла, префикс версии
+*/
 
 
 #endif /* ODC_BANKNOTE_H */
