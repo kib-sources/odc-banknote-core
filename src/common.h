@@ -204,6 +204,25 @@ char *_bytes_2_base64(
 );
 
 
+//Конвертация pem предсталения ключа RSA в массив байтов
+char *_extract_base64_from_pem(
+    char *pem_key
+);
+
+BYTE *_pem_2_bytes(
+    char *pem_key, 
+    size_t *bytes_key_size
+);
+
+
+char *_bytes_2_pem(
+    BYTE *bytes_key, 
+    size_t bytes_key_size, 
+    size_t *pem_key_size, 
+    unsigned char pem_type
+);
+
+
 //Функции вывода
 
 void _print_uuid(
