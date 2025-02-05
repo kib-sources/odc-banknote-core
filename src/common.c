@@ -244,8 +244,19 @@ void _get_signature_rsa4096(char *text, RSA *private_key, SIGN signature)
 
 void write_odcb_file(BLOCK_HEADER *banknote, FILE_PATH path)
 {
+    char *concatenated_fields = BLOCK_HEADER_concatenate_all_fields(banknote);
+
+    FILE *fp = fopen(path, "w");
+
+    if (fp) {
+        fputs(concatenated_fields, fp);
+        fclose(fp);
+        printf("File has been written\n");
+    }
 
 }
+
+
 
 
 unsigned int _produce_random_byte() {
@@ -339,6 +350,7 @@ char *BLOCK_HEADER_concatenate_fields_for_hash(BLOCK_HEADER *banknote)
     free(type_c_str);
     free(bank_id_c_str);
     free(banknote_id_c_str);
+    free(owner_id_c_str);
     free(code_c_str);
     free(applicability_c_str);
     free(sign_algorithm_c_str);
@@ -352,14 +364,75 @@ char *BLOCK_HEADER_concatenate_fields_for_hash(BLOCK_HEADER *banknote)
 
 char *BLOCK_HEADER_concatenate_all_fields(BLOCK_HEADER *banknote)
 {
+    char *delimiter = ".";
+
+    size_t size_size = (banknote->size == 0) ? 1 : log10(banknote->size) + 1;
 
     char *type_c_str = _add_zero_char(banknote->type, TYPE_SIZE);
     char *bank_id_c_str = _add_zero_char(banknote->bin, ID_SIZE);
+    char *banknote_id_c_str = _add_zero_char(banknote->bnid, ID_SIZE);
+    char *owner_id_c_str = _add_zero_char(banknote->owner, ID_SIZE);
+    char *code_c_str = _add_zero_char(banknote->code, CODE_SIZE);
 
-    char *concatenated_text = _concatenate_fields("ss", type_c_str,
-                                                          bank_id_c_str);
+    size_t amount_size = (banknote->amount == 0) ? 1 : log10(banknote->amount) + 1;
 
-    return concatenated_text;
+    char *applicability_c_str = _add_zero_char(banknote->applicability, APPLICABILITY_SIZE);
+
+    size_t count_size = (banknote->count_append_applicability_blocks == 0) ? 1 : log10(banknote->count_append_applicability_blocks) + 1;
+
+    char *sign_algorithm_c_str = _add_zero_char(banknote->sign_algorithm, NAME_ALGORITHM_SIZE);
+    char *hash_algorithm_c_str = _add_zero_char(banknote->hash_algorithm, NAME_ALGORITHM_SIZE);
+    //char *salt_c_str = _add_zero_char(banknote->salt, SALT_SIZE);
+
+    size_t salt_base64_size;
+    char *salt_base64_c_str = _bytes_2_base64(banknote->salt, SALT_SIZE, &salt_base64_size);
+    char *salt_hex = _bytes_2_hex(banknote->salt, HASH_SIZE);
+    printf("salt hex: %s\n", salt_hex);
+    printf("salt base64: %s\n", salt_base64_c_str);
+
+    char *hash_hex = _bytes_2_hex(banknote->hash, HASH_SIZE);
+    printf("Hash hex: %s\n", hash_hex);
+    size_t hash_base64_size;
+    char *hash_base64_c_str = _bytes_2_base64(banknote->hash, HASH_SIZE, &hash_base64_size);
+    printf("Hash base64: %s\n", hash_base64_c_str);
+
+    char *sign_hex = _bytes_2_hex(banknote->bank_sign, SIGN_SIZE);
+    printf("sign hex: %s\n", sign_hex);
+    size_t sign_base64_size;
+    char *sign_base64_c_str = _bytes_2_base64(banknote->bank_sign, SIGN_SIZE, &sign_base64_size);
+    printf("sign base64: %s\n", sign_base64_c_str);
+
+    char *concatenated_fields = _concatenate_fields("dsd dss dss dss dss dss dsd dss dsd dss dss dss dss dss dss",
+                                                    size_size, delimiter, banknote->size,
+                                                    TYPE_SIZE, delimiter, type_c_str,
+                                                    ID_SIZE, delimiter, bank_id_c_str,
+                                                    ID_SIZE, delimiter, banknote_id_c_str,
+                                                    ID_SIZE, delimiter, owner_id_c_str,
+                                                    CODE_SIZE, delimiter, code_c_str,
+                                                    amount_size, delimiter, banknote->amount,
+                                                    APPLICABILITY_SIZE, delimiter, applicability_c_str,
+                                                    count_size, delimiter, banknote->count_append_applicability_blocks,
+                                                    NAME_ALGORITHM_SIZE, delimiter, sign_algorithm_c_str,
+                                                    NAME_ALGORITHM_SIZE, delimiter, hash_algorithm_c_str,
+                                                    salt_base64_size, delimiter, salt_base64_c_str,
+                                                    hash_base64_size, delimiter, hash_base64_c_str,
+                                                    banknote->bok.len, delimiter, banknote->bok.pem_key,
+                                                    sign_base64_size, delimiter, sign_base64_c_str);
+
+    free(type_c_str);
+    free(bank_id_c_str);
+    free(banknote_id_c_str);
+    free(owner_id_c_str);
+    free(code_c_str);
+    free(applicability_c_str);
+    free(sign_algorithm_c_str);
+    free(hash_algorithm_c_str);
+    free(salt_base64_c_str);
+    free(hash_base64_c_str);
+    free(sign_base64_c_str);
+
+
+    return concatenated_fields;
 }
 
 
@@ -451,13 +524,14 @@ unsigned char _decode_base64_char(char c) {
     if (c == '/') {
         return 63;
     }
-    return 255; // Invalid character
+    return 255; 
 }
 
 
 BYTE * _base64_2_bytes(char *base64_str, size_t *decoded_len)
 {
     size_t len = strlen(base64_str);
+    //printf("Len: %d\n", len);
 
     if (len % 4 != 0) {
         printf("Invalid Base64 string length.\n");
@@ -487,6 +561,140 @@ BYTE * _base64_2_bytes(char *base64_str, size_t *decoded_len)
     }
 
     return decoded;
+}
+
+
+char *_bytes_2_base64(BYTE *data, size_t decoded_len, size_t *encoded_len) 
+{
+
+    static char base64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    static int mod_table[] = {0, 2, 1};
+
+    *encoded_len = ((decoded_len + 2) / 3) * 4;
+
+    
+    char *encoded_data = malloc(*encoded_len);
+    if (encoded_data == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0, j = 0; i < decoded_len;) {
+        uint32_t octet_a = i < decoded_len ? (unsigned char)data[i++] : 0;
+        uint32_t octet_b = i < decoded_len ? (unsigned char)data[i++] : 0;
+        uint32_t octet_c = i < decoded_len ? (unsigned char)data[i++] : 0;
+
+        uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+
+        encoded_data[j++] = base64_table[(triple >> 3 * 6) & 0x3F];
+        encoded_data[j++] = base64_table[(triple >> 2 * 6) & 0x3F];
+        encoded_data[j++] = base64_table[(triple >> 1 * 6) & 0x3F];
+        encoded_data[j++] = base64_table[(triple >> 0 * 6) & 0x3F];
+    }
+
+    for (int i = 0; i < mod_table[decoded_len % 3]; i++) {
+        encoded_data[*encoded_len - 1 - i] = '=';
+    }
+
+    return encoded_data;
+}
+
+
+char *_extract_base64_from_pem(char *pem_key)
+{
+    char *begin = strchr(pem_key, '\n');
+    char *end = strchr(begin, '-');
+
+    int begin_index = (int)(begin - pem_key);
+    int end_index = (int)(end - pem_key);
+    int suggested_size = end_index - begin_index;
+
+    char *stripped_pem_key = (char *)calloc(suggested_size, sizeof(char));
+
+    int shift = 0;
+    for (int i = 0; i < suggested_size; ++i) {
+        if (pem_key[begin_index + i] == '\n') {
+            shift += 1;
+        } else {
+            stripped_pem_key[i - shift] = pem_key[begin_index + i];
+        }
+
+    }
+
+    int actual_size = suggested_size - shift;
+
+    //printf("Suggested size: %d\nActual size: %d\n", suggested_size, actual_size);
+
+    //printf("Striped: %s\n", stripped_pem_key);
+
+    stripped_pem_key = (char *)realloc(stripped_pem_key, actual_size);
+
+    return stripped_pem_key;
+}
+
+
+BYTE *_pem_2_bytes(char *pem_key, size_t *bytes_key_size) 
+{
+    char *base64_key = _extract_base64_from_pem(pem_key);
+
+    BYTE *bytes_key = _base64_2_bytes(base64_key, bytes_key_size);
+
+    free(base64_key);
+
+    return bytes_key;
+}
+
+//0 - private, 1 - puiblic
+char *_bytes_2_pem(BYTE *bytes_key, size_t bytes_key_size, size_t *pem_key_size, unsigned char pem_type)
+{
+    char *base64 = _bytes_2_base64(bytes_key, bytes_key_size, pem_key_size);    
+    
+    int base64_len = *pem_key_size;
+    
+    char *first_pem_line;
+    char *last_pem_line;
+    if (pem_type == 0) {
+        first_pem_line = "-----BEGIN RSA PRIVATE KEY-----\n";
+        last_pem_line = "-----END RSA PRIVATE KEY-----\n";
+    } else {
+        first_pem_line = "-----BEGIN PUBLIC KEY-----\n";
+        last_pem_line = "-----END PUBLIC KEY-----\n";
+    }
+
+    int delimeters = strlen(base64) / 63;
+
+    *pem_key_size = base64_len + delimeters + strlen(first_pem_line) + strlen(last_pem_line) + 1;
+    //printf("Len: %d\n", *pem_key_size);
+    char *pem_key = (char*)calloc(*pem_key_size, sizeof(char));
+
+    for (int i = 0; i < strlen(first_pem_line); ++i) {
+        pem_key[i] = first_pem_line[i];
+    }
+
+    int ind = strlen(first_pem_line);
+
+    for (int i = 0; i < base64_len; ++i) {
+        if (i % 64 == 0 && i != 0) {
+            pem_key[ind] = '\n';
+            ind += 1;
+        }
+        pem_key[ind] = base64[i];
+        ind += 1;
+    }
+
+
+    if (pem_key[ind - 1] != '\n') {
+        pem_key[ind] = '\n';
+        ind += 1;
+    }
+
+    for (int i = 0; i < strlen(last_pem_line); ++i) {
+        pem_key[ind] = last_pem_line[i];
+        ind += 1;
+    }
+
+    free(base64);
+
+    return pem_key;
 }
 
 

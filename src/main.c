@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <common.h>
-#include <uuid/uuid.h>
+#include <string.h>
+
 
 void _create_test_banknote()
 {
@@ -65,7 +66,7 @@ void _create_test_banknote()
                             "oMGsrTTqmnpeEH/lLOo5W8AFpTUJCBYFc+gDYisp3oUwb5EBkN+ax3wBqgdQ16vM\n"
                             "QOGj07Qa1ox7wXz3yecQqciL2qt4KbnjuVLgymmofn5RigkLlF+/sGw813EAgcji\n"
                             "LSEYM+dvytvZm+t+c8eUy53jKiEB2fxjEx9KlkdJiY+nlBVfWZ9or9wCig==\n"
-                            "-----END RSA PRIVATE KEY-----\n";
+                            "-----END RSA PRIVATE KEY-----";
 
     char *public_pem = "-----BEGIN PUBLIC KEY-----\n"
                            "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA1boiXFai+sDJSPPrIFdN\n"
@@ -80,7 +81,7 @@ void _create_test_banknote()
                            "hNojS4kBXqdUWTWjTLH/VHyLv2avW0IwdVAwbapb+ertPDrZDAeaTBZURyp6SCJs\n"
                            "hjpmRd/s2xUkEhiZEsiSSBAYio26AL1yssmCrPxD3NsO4lN/LBxbtcZyLcAfFE26\n"
                            "nzfQ0d6+gxKd9MKLoxTWtfUCAwEAAQ==\n"
-                           "-----END PUBLIC KEY-----\n";
+                           "-----END PUBLIC KEY-----";
 
 
     //printf("Key size pub: %d\n", strlen(public_pem));
@@ -93,7 +94,6 @@ void _create_test_banknote()
     private.len = 3243;
     private.pem_key = private_pem;
 
-    
 
     KEYS_PAIR rsa_pem_keys;// = _init_rsa_keys();
     rsa_pem_keys.private = private;
@@ -101,24 +101,24 @@ void _create_test_banknote()
     //printf("%s\n %s\n", rsa_pem_keys.private.pem_key, rsa_pem_keys.public.pem_key);
 
     BLOCK_HEADER_sign(&banknote, rsa_pem_keys);
+
+    
+
     _print_banknote_header(&banknote);
 
     char *test_concat = BLOCK_HEADER_concatenate_all_fields(&banknote);
-    printf("Test concat: %s\n", test_concat);
+    printf("Test concat: \n%s\n", test_concat);
 
     printf("Resulkt: %d\n", BLOCK_HEADER_verify(&banknote));
 
-    size_t decoded_len = 0;
-    BYTE *bytes = _base64_2_bytes(public_pem, &decoded_len);
-    _print_hex(bytes, decoded_len);
-    free(bytes);
+    write_odcb_file(&banknote, "/home/smth/projects/KIB/odc-banknote-core/test.odcb");
 }
 
 
 int main() {
     _create_test_banknote();
 
-    
-    
+
+
     return 0;  
 } 
